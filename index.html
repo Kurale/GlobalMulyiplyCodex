@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Глобальное умножение</title>
+    <link rel="icon" href="data:,">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f0f1e;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #252540;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0b0;
+            --accent-green: #00ff88;
+            --accent-red: #ff4466;
+            --accent-yellow: #ffcc00;
+            --accent-purple: #9966ff;
+            --accent-blue: #00ccff;
+            --accent-orange: #ff8800;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .screen.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* Home Screen */
+        #home-screen {
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .level-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .level-number {
+            font-size: 72px;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .xp-bar-container {
+            width: 280px;
+            height: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            margin: 10px auto;
+            overflow: hidden;
+        }
+
+        .xp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        }
+
+        .xp-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .streak-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 40px;
+        }
+
+        .streak-fire {
+            font-size: 40px;
+        }
+
+        .start-button {
+            width: 200px;
+            height: 80px;
+            font-size: 28px;
+            font-weight: 700;
+            border: none;
+            border-radius: 40px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+            color: var(--bg-primary);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .start-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 30px rgba(0, 255, 136, 0.5);
+        }
+
+        .start-button:active {
+            transform: scale(0.98);
+        }
+
+        .matrix-preview {
+            margin-top: 40px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            max-width: 320px;
+        }
+
+        .matrix-cell {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .matrix-cell.learned {
+            background: var(--accent-green);
+            color: var(--bg-primary);
+        }
+
+        .matrix-cell.learning {
+            background: var(--accent-yellow);
+            color: var(--bg-primary);
+        }
+
+        .matrix-cell.weak {
+            background: var(--accent-red);
+            color: var(--text-primary);
+        }
+
+        /* Game Screen */
+        #game-screen {
+            background: var(--bg-primary);
+        }
+
+        .game-header {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+        }
+
+        .streak-counter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .xp-counter {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--accent-yellow);
+        }
+
+        .session-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+            transition: width 0.3s ease;
+        }
+
+        .problem-display {
+            font-size: 96px;
+            font-weight: 900;
+            text-align: center;
+            margin: 40px 0;
+            letter-spacing: -2px;
+        }
+
+        .answer-input {
+            width: 200px;
+            height: 80px;
+            font-size: 48px;
+            font-weight: 700;
+            text-align: center;
+            border: 4px solid var(--bg-tertiary);
+            border-radius: 16px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .answer-input:focus {
+            border-color: var(--accent-green);
+        }
+
+        .go-button {
+            width: 200px;
+            height: 60px;
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+            color: var(--bg-primary);
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+        }
+
+        .go-button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+        }
+
+        .go-button:active {
+            transform: scale(0.98);
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 60px;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .mode-indicator.blitz {
+            background: var(--accent-orange);
+            color: var(--bg-primary);
+        }
+
+        .mode-indicator.boss {
+            background: var(--accent-red);
+            color: var(--text-primary);
+        }
+
+        /* Results Screen */
+        #results-screen {
+            background: var(--bg-secondary);
+        }
+
+        .results-title {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 40px;
+        }
+
+        .results-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 40px;
+        }
+
+        .stat-box {
+            background: var(--bg-tertiary);
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        /* Feedback Overlay */
+        #feedback-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+
+        #feedback-overlay.show {
+            opacity: 1;
+        }
+
+        .feedback-correct {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 255, 136, 0.2);
+            animation: flashGreen 0.3s ease;
+        }
+
+        .feedback-incorrect {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 68, 102, 0.2);
+            animation: shake 0.4s ease;
+        }
+
+        .feedback-text {
+            font-size: 48px;
+            font-weight: 900;
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .feedback-text.correct {
+            color: var(--accent-green);
+        }
+
+        .feedback-text.incorrect {
+            color: var(--accent-red);
+        }
+
+        .feedback-text.bonus {
+            color: var(--accent-yellow);
+        }
+
+        @keyframes flashGreen {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        @media (max-width: 480px) {
+            .level-number {
+                font-size: 56px;
+            }
+
+            .problem-display {
+                font-size: 72px;
+            }
+
+            .answer-input {
+                width: 160px;
+                height: 70px;
+                font-size: 40px;
+            }
+
+            .matrix-cell {
+                width: 32px;
+                height: 32px;
+                font-size: 9px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Home Screen -->
+    <div id="home-screen" class="screen">
+        <div class="level-section">
+            <div class="level-number" id="level-display">1</div>
+            <div class="xp-bar-container">
+                <div class="xp-bar-fill" id="xp-bar-fill" style="width: 0%"></div>
+            </div>
+            <div class="xp-text" id="xp-text">0 / 100 XP</div>
+        </div>
+
+        <div class="streak-display">
+            <span class="streak-fire">🔥</span>
+            <span id="streak-display">0</span>
+        </div>
+
+        <button class="start-button" id="start-button">СТАРТ</button>
+
+        <div class="matrix-preview" id="matrix-preview"></div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <div class="session-progress" id="session-progress"></div>
+
+        <div class="game-header">
+            <div class="streak-counter">
+                <span>🔥</span>
+                <span id="game-streak">0</span>
+            </div>
+            <div class="xp-counter">+<span id="game-xp">0</span> XP</div>
+        </div>
+
+        <div class="mode-indicator" id="mode-indicator" style="display: none;"></div>
+
+        <div class="problem-display" id="problem-display">2 × 3 = ?</div>
+
+        <input type="number" class="answer-input" id="answer-input" autocomplete="off" inputmode="numeric">
+        <button class="go-button" id="go-button">GO!</button>
+    </div>
+
+    <!-- Results Screen -->
+    <div id="results-screen" class="screen">
+        <div class="results-title">Сессия завершена!</div>
+
+        <div class="results-stats">
+            <div class="stat-box">
+                <div class="stat-value" id="result-problems">0</div>
+                <div class="stat-label">Примеров</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="result-accuracy">0%</div>
+                <div class="stat-label">Точность</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="result-xp">0</div>
+                <div class="stat-label">XP</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="result-streak">0</div>
+                <div class="stat-label">Лучшая серия</div>
+            </div>
+        </div>
+
+        <button class="start-button" id="continue-button">ПРОДОЛЖИТЬ</button>
+    </div>
+
+    <!-- Feedback Overlay -->
+    <div id="feedback-overlay">
+        <div id="feedback-bg" class="feedback-correct"></div>
+        <div class="feedback-text" id="feedback-text"></div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONSTANTS
+        // ============================================
+        const TARGET_MS = 2000;
+        const EMA_ALPHA = 0.25;
+        const SESSION_DURATION_MS = 75000;
+        const BLITZ_COUNT = 10;
+        const SPEED_BONUS_FAST = 1500;
+        const SPEED_BONUS_VERY_FAST = 1000;
+        const STREAK_INCREMENT = 5;
+        const AUTOMATION_ATTEMPTS = 30;
+        const AUTOMATION_ACCURACY = 0.90;
+        const AUTOMATION_MASTERY = 70;
+
+        const EVENT_PROBABILITIES = {
+            x2: 0.05,
+            blitz: 0.03,
+            boss: 0.01
+        };
+
+        const DECAY_PER_DAY = 0.15;
+        const MAX_DECAY = 0.4;
+        const FATIGUE_THRESHOLD = 0.7;
+        const FATIGUE_INCREASE = 0.1;
+        const SPACED_REVIEW_ACCURACY = 0.9;
+
+        // ============================================
+        // STATE MANAGER
+        // ============================================
+        const stateManager = (function() {
+            const STORAGE_KEY = 'multiplication_trainer_state';
+
+            function createCell(a, b) {
+                return {
+                    a: a,
+                    b: b,
+                    attempts: 0,
+                    correct: 0,
+                    errors: 0,
+                    avgReactionMs: 0,
+                    lastSeenAt: 0,
+                    lastCorrectAt: 0,
+                    masteryScore: 0,
+                    stabilityIndex: 0,
+                    intervalDays: 0,
+                    isAutomated: false
+                };
+            }
+
+            function initializeMatrix() {
+                const matrix = {};
+                for (let a = 2; a <= 9; a++) {
+                    for (let b = a; b <= 9; b++) {
+                        const key = `${a}x${b}`;
+                        matrix[key] = createCell(a, b);
+                    }
+                }
+                return matrix;
+            }
+
+            function getInitialState() {
+                return {
+                    profile: {
+                        totalXP: 0,
+                        level: 1,
+                        streak: 0,
+                        bestStreak: 0,
+                        fatigueIndex: 0,
+                        lastSessionAt: 0
+                    },
+                    session: {
+                        startAt: 0,
+                        durationMs: SESSION_DURATION_MS,
+                        answered: 0,
+                        correct: 0,
+                        sumReactionMs: 0,
+                        mode: 'normal',
+                        blitzRemaining: 0,
+                        bossActive: false,
+                        xpEarned: 0,
+                        bestStreak: 0,
+                        currentEventMultiplier: 1
+                    },
+                    matrix: initializeMatrix()
+                };
+            }
+
+            let state = null;
+
+            function load() {
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        state = JSON.parse(saved);
+                        // Validate and migrate if needed
+                        if (!state.matrix || Object.keys(state.matrix).length !== 36) {
+                            state = getInitialState();
+                        }
+                    } else {
+                        state = getInitialState();
+                    }
+                } catch (e) {
+                    console.error('Failed to load state:', e);
+                    state = getInitialState();
+                }
+                return state;
+            }
+
+            function save() {
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+                } catch (e) {
+                    console.error('Failed to save state:', e);
+                }
+            }
+
+            function get() {
+                return state;
+            }
+
+            function set(newState) {
+                state = newState;
+            }
+
+            return { load, save, get, set, getInitialState };
+        })();
+
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function random(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function randomInt(min, max) {
+            return Math.floor(random(min, max + 1));
+        }
+
+        // ============================================
+        // ADAPTIVE ENGINE
+        // ============================================
+        const adaptiveEngine = (function() {
+            function updateCellReaction(cellKey, reactionMs, isCorrect) {
+                const state = stateManager.get();
+                const cell = state.matrix[cellKey];
+
+                // Update attempts
+                cell.attempts++;
+                if (isCorrect) {
+                    cell.correct++;
+                    cell.lastCorrectAt = Date.now();
+                } else {
+                    cell.errors++;
+                }
+
+                // Update EMA of reaction time
+                if (cell.avgReactionMs === 0) {
+                    cell.avgReactionMs = reactionMs;
+                } else {
+                    cell.avgReactionMs = EMA_ALPHA * reactionMs + (1 - EMA_ALPHA) * cell.avgReactionMs;
+                }
+
+                cell.lastSeenAt = Date.now();
+
+                // Recalculate mastery score
+                calculateMasteryScore(cell);
+
+                // Check automation threshold
+                checkAutomationThreshold(cell);
+
+                stateManager.set(state);
+            }
+
+            function calculateMasteryScore(cell) {
+                // Accuracy
+                const accuracy = cell.attempts > 0 ? cell.correct / cell.attempts : 0;
+
+                // Speed factor
+                const speedFactor = clamp(1 - (cell.avgReactionMs / TARGET_MS), 0, 1);
+
+                // Forgetting decay
+                const daysSinceSeen = cell.lastSeenAt > 0 ? (Date.now() - cell.lastSeenAt) / 86400000 : 0;
+                const decay = Math.min(DECAY_PER_DAY * daysSinceSeen, MAX_DECAY);
+
+                // Stability index
+                cell.stabilityIndex = clamp(
+                    accuracy * 0.7 + speedFactor * 0.3,
+                    0,
+                    1
+                );
+
+                // Progress bonus - grows with attempts but caps at 20
+                const progressBonus = clamp((cell.attempts / AUTOMATION_ATTEMPTS) * 20, 0, 20);
+
+                // Mastery score - increased accuracy weight for faster growth
+                const rawMastery = 70 * accuracy + 25 * speedFactor + 5 * cell.stabilityIndex + progressBonus;
+                cell.masteryScore = clamp(rawMastery * (1 - decay), 0, 100);
+            }
+
+            function selectNextProblem() {
+                const state = stateManager.get();
+                const cells = Object.entries(state.matrix);
+                const priorities = cells.map(([key, cell]) => {
+                    // Calculate decay
+                    const daysSinceSeen = cell.lastSeenAt > 0 ? (Date.now() - cell.lastSeenAt) / 86400000 : 0;
+                    const decay = Math.min(DECAY_PER_DAY * daysSinceSeen, MAX_DECAY);
+
+                    // Check if due for spaced repetition
+                    if (cell.isAutomated && cell.intervalDays > 0) {
+                        const dueAt = cell.lastSeenAt + cell.intervalDays * 86400000;
+                        if (Date.now() >= dueAt) {
+                            return { key, priority: 1000 + decay * 100 }; // Highest priority
+                        }
+                    }
+
+                    // Normal priority
+                    const priority = (100 - cell.masteryScore) * 0.6 + decay * 100 * 0.3 + random(0, 10);
+                    return { key, priority };
+                });
+
+                // Weighted random selection
+                const totalPriority = priorities.reduce((sum, p) => sum + p.priority, 0);
+                let randomSelector = Math.random() * totalPriority;
+
+                for (const { key, priority } of priorities) {
+                    randomSelector -= priority;
+                    if (randomSelector <= 0) {
+                        const cell = state.matrix[key];
+                        return {
+                            a: cell.a,
+                            b: cell.b,
+                            key: key,
+                            answer: cell.a * cell.b
+                        };
+                    }
+                }
+
+                // Fallback
+                const fallback = priorities[0];
+                const cell = state.matrix[fallback.key];
+                return {
+                    a: cell.a,
+                    b: cell.b,
+                    key: fallback.key,
+                    answer: cell.a * cell.b
+                };
+            }
+
+            function checkAutomationThreshold(cell) {
+                if (cell.attempts >= AUTOMATION_ATTEMPTS &&
+                    cell.avgReactionMs > 0 &&
+                    cell.avgReactionMs <= TARGET_MS &&
+                    cell.masteryScore >= AUTOMATION_MASTERY) {
+                    const accuracy = cell.correct / cell.attempts;
+                    if (accuracy >= AUTOMATION_ACCURACY) {
+                        cell.isAutomated = true;
+                        if (cell.intervalDays === 0) {
+                            cell.intervalDays = 1;
+                        }
+                    }
+                }
+            }
+
+            function updateSpacedInterval(cellKey, accuracy) {
+                const state = stateManager.get();
+                const cell = state.matrix[cellKey];
+
+                if (!cell.isAutomated) return;
+
+                if (accuracy >= SPACED_REVIEW_ACCURACY) {
+                    cell.intervalDays *= 2;
+                } else {
+                    cell.intervalDays = Math.max(1, cell.intervalDays / 2);
+                }
+
+                stateManager.set(state);
+            }
+
+            return {
+                updateCellReaction,
+                calculateMasteryScore,
+                selectNextProblem,
+                checkAutomationThreshold,
+                updateSpacedInterval
+            };
+        })();
+
+        // ============================================
+        // REWARD SYSTEM
+        // ============================================
+        const rewardSystem = (function() {
+            function calculateXP(reactionMs, isCorrect, streak, eventMultiplier) {
+                if (!isCorrect) return 0;
+
+                let baseXP = 10;
+                let speedBonus = 0;
+
+                if (reactionMs <= SPEED_BONUS_VERY_FAST) {
+                    speedBonus = 10;
+                } else if (reactionMs <= SPEED_BONUS_FAST) {
+                    speedBonus = 5;
+                }
+
+                const streakMultiplier = clamp(1 + Math.floor(streak / STREAK_INCREMENT) * 0.2, 1, 2);
+
+                return (baseXP + speedBonus) * streakMultiplier * eventMultiplier;
+            }
+
+            function checkRandomEvent() {
+                const state = stateManager.get();
+                let x2Prob = EVENT_PROBABILITIES.x2;
+                let blitzProb = EVENT_PROBABILITIES.blitz;
+                let bossProb = EVENT_PROBABILITIES.boss;
+
+                // Increase probabilities if fatigued
+                if (state.profile.fatigueIndex > FATIGUE_THRESHOLD) {
+                    x2Prob *= 1.5;
+                    blitzProb *= 1.5;
+                    bossProb *= 1.5;
+                }
+
+                const roll = Math.random();
+
+                if (roll < bossProb) {
+                    return { type: 'boss', multiplier: 5 };
+                } else if (roll < bossProb + blitzProb) {
+                    return { type: 'blitz', multiplier: 1 };
+                } else if (roll < bossProb + blitzProb + x2Prob) {
+                    return { type: 'x2', multiplier: 2 };
+                }
+
+                return { type: 'normal', multiplier: 1 };
+            }
+
+            function calculateNextLevelXP(level) {
+                return Math.floor(100 + Math.pow(level, 1.5) * 20);
+            }
+
+            function updateFatigueIndex(sessionAvgReaction, baselineReaction) {
+                const state = stateManager.get();
+
+                if (baselineReaction > 0 && sessionAvgReaction > baselineReaction * 1.2) {
+                    state.profile.fatigueIndex = Math.min(1, state.profile.fatigueIndex + FATIGUE_INCREASE);
+                } else {
+                    state.profile.fatigueIndex = Math.max(0, state.profile.fatigueIndex - FATIGUE_INCREASE * 0.5);
+                }
+
+                stateManager.set(state);
+            }
+
+            function updateStreak(isCorrect) {
+                const state = stateManager.get();
+
+                if (isCorrect) {
+                    state.profile.streak++;
+                    if (state.profile.streak > state.profile.bestStreak) {
+                        state.profile.bestStreak = state.profile.streak;
+                    }
+                } else {
+                    state.profile.streak = 0;
+                }
+
+                stateManager.set(state);
+                return state.profile.streak;
+            }
+
+            function addXP(amount) {
+                const state = stateManager.get();
+                state.profile.totalXP += amount;
+
+                // Check level up
+                const nextLevelXP = calculateNextLevelXP(state.profile.level);
+                while (state.profile.totalXP >= nextLevelXP) {
+                    state.profile.totalXP -= nextLevelXP;
+                    state.profile.level++;
+                }
+
+                stateManager.set(state);
+                return state.profile.level;
+            }
+
+            return {
+                calculateXP,
+                checkRandomEvent,
+                calculateNextLevelXP,
+                updateFatigueIndex,
+                updateStreak,
+                addXP
+            };
+        })();
+
+        // ============================================
+        // GAME ENGINE
+        // ============================================
+        const gameEngine = (function() {
+            let currentProblem = null;
+            let problemStartTime = 0;
+            let sessionTimer = null;
+            let baselineReaction = 0;
+
+            function startSession(mode = 'normal') {
+                const state = stateManager.get();
+
+                state.session = {
+                    startAt: Date.now(),
+                    durationMs: mode === 'blitz' ? SESSION_DURATION_MS * 0.5 : SESSION_DURATION_MS,
+                    answered: 0,
+                    correct: 0,
+                    sumReactionMs: 0,
+                    mode: mode,
+                    blitzRemaining: mode === 'blitz' ? BLITZ_COUNT : 0,
+                    bossActive: mode === 'boss',
+                    xpEarned: 0,
+                    bestStreak: 0,
+                    currentEventMultiplier: 1
+                };
+
+                state.profile.lastSessionAt = Date.now();
+                stateManager.set(state);
+
+                currentProblem = adaptiveEngine.selectNextProblem();
+                problemStartTime = performance.now();
+
+                // Start session timer
+                if (mode !== 'blitz') {
+                    sessionTimer = setTimeout(() => {
+                        endSession();
+                    }, state.session.durationMs);
+                }
+
+                uiRenderer.showGameScreen(currentProblem);
+            }
+
+            function submitAnswer(answer) {
+                const isCorrect = answer === currentProblem.answer;
+                const reactionMs = performance.now() - problemStartTime;
+
+                const state = stateManager.get();
+
+                // Update cell
+                adaptiveEngine.updateCellReaction(currentProblem.key, reactionMs, isCorrect);
+
+                // Calculate rewards
+                const streak = rewardSystem.updateStreak(isCorrect);
+                const xpEarned = rewardSystem.calculateXP(
+                    reactionMs,
+                    isCorrect,
+                    streak - 1,
+                    state.session.currentEventMultiplier
+                );
+
+                state.session.answered++;
+                state.session.sumReactionMs += reactionMs;
+                state.session.xpEarned += xpEarned;
+
+                if (isCorrect) {
+                    state.session.correct++;
+                }
+
+                if (streak > state.session.bestStreak) {
+                    state.session.bestStreak = streak;
+                }
+
+                // Check for random events on correct answers
+                let nextEvent = null;
+                if (isCorrect && state.session.mode === 'normal') {
+                    nextEvent = rewardSystem.checkRandomEvent();
+                    if (nextEvent.type !== 'normal') {
+                        state.session.currentEventMultiplier = nextEvent.multiplier;
+                    }
+                }
+
+                stateManager.set(state);
+
+                // Save state
+                stateManager.save();
+
+                // Show feedback
+                uiRenderer.showFeedback(isCorrect, xpEarned, streak, nextEvent, currentProblem.answer);
+
+                // Check if session should end
+                if (shouldEndSession(state, isCorrect)) {
+                    setTimeout(() => endSession(), 1400);
+                    return;
+                }
+
+                // Select next problem
+                setTimeout(() => {
+                    if (state.session.bossActive && !isCorrect) {
+                        // Boss mode ends on error
+                        endSession();
+                        return;
+                    }
+
+                    currentProblem = adaptiveEngine.selectNextProblem();
+                    problemStartTime = performance.now();
+
+                    uiRenderer.updateGameScreen(currentProblem, streak, state.session.xpEarned);
+                }, isCorrect ? 1400 : 1600);
+            }
+
+            function shouldEndSession(state, isCorrect) {
+                // Blitz mode: counter reaches 0
+                if (state.session.mode === 'blitz') {
+                    return state.session.blitzRemaining <= 0;
+                }
+
+                // Boss mode: error ends session
+                if (state.session.mode === 'boss' && !isCorrect) {
+                    return true;
+                }
+
+                return false;
+            }
+
+            function endSession() {
+                if (sessionTimer) {
+                    clearTimeout(sessionTimer);
+                    sessionTimer = null;
+                }
+
+                const state = stateManager.get();
+                const session = state.session;
+
+                // Update fatigue index
+                if (session.answered > 0) {
+                    const avgReaction = session.sumReactionMs / session.answered;
+                    rewardSystem.updateFatigueIndex(avgReaction, baselineReaction);
+                }
+
+                // Calculate session stats
+                const accuracy = session.answered > 0 ? session.correct / session.answered : 0;
+
+                // Update spaced intervals for automated cells that were reviewed
+                for (const [key, cell] of Object.entries(state.matrix)) {
+                    if (cell.isAutomated && cell.lastSeenAt >= session.startAt) {
+                        const cellAccuracy = cell.correct / cell.attempts;
+                        rewardSystem.updateSpacedInterval(key, cellAccuracy);
+                    }
+                }
+
+                stateManager.save();
+
+                uiRenderer.showResultsScreen({
+                    problems: session.answered,
+                    accuracy: accuracy,
+                    xp: session.xpEarned,
+                    streak: session.bestStreak
+                });
+            }
+
+            function setBaselineReaction(reactionMs) {
+                baselineReaction = reactionMs;
+            }
+
+            return {
+                startSession,
+                submitAnswer,
+                endSession,
+                setBaselineReaction
+            };
+        })();
+
+        // ============================================
+        // UI RENDERER
+        // ============================================
+        const uiRenderer = (function() {
+            function showScreen(screenId) {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById(screenId).classList.add('active');
+            }
+
+            function updateHomeScreen() {
+                const state = stateManager.get();
+                const profile = state.profile;
+
+                // Level
+                document.getElementById('level-display').textContent = profile.level;
+
+                // XP bar
+                const nextLevelXP = rewardSystem.calculateNextLevelXP(profile.level);
+                const xpPercent = (profile.totalXP / nextLevelXP) * 100;
+                document.getElementById('xp-bar-fill').style.width = xpPercent + '%';
+                document.getElementById('xp-text').textContent = `${profile.totalXP} / ${nextLevelXP} XP`;
+
+                // Streak
+                document.getElementById('streak-display').textContent = profile.streak;
+
+                // Matrix preview
+                const matrixPreview = document.getElementById('matrix-preview');
+                matrixPreview.innerHTML = '';
+
+                for (let a = 2; a <= 9; a++) {
+                    for (let b = a; b <= 9; b++) {
+                        const key = `${a}x${b}`;
+                        const cell = state.matrix[key];
+
+                        const div = document.createElement('div');
+                        div.className = 'matrix-cell';
+
+                        if (cell.isAutomated) {
+                            div.classList.add('learned');
+                            div.textContent = '✓';
+                        } else if (cell.masteryScore >= 50) {
+                            div.classList.add('learning');
+                            div.textContent = Math.round(cell.masteryScore);
+                        } else if (cell.attempts > 0) {
+                            div.classList.add('weak');
+                            div.textContent = Math.round(cell.masteryScore);
+                        } else {
+                            div.textContent = '';
+                        }
+
+                        matrixPreview.appendChild(div);
+                    }
+                }
+            }
+
+            function showGameScreen(problem) {
+                showScreen('game-screen');
+
+                // Mode indicator
+                const modeIndicator = document.getElementById('mode-indicator');
+                const state = stateManager.get();
+                modeIndicator.style.display = 'none';
+
+                if (state.session.mode === 'blitz') {
+                    modeIndicator.textContent = `⚡ BLITZ: ${state.session.blitzRemaining}`;
+                    modeIndicator.classList.add('blitz');
+                    modeIndicator.style.display = 'block';
+                } else if (state.session.mode === 'boss') {
+                    modeIndicator.textContent = '👹 BOSS: без ошибок!';
+                    modeIndicator.classList.add('boss');
+                    modeIndicator.style.display = 'block';
+                }
+
+                // Problem
+                document.getElementById('problem-display').textContent = `${problem.a} × ${problem.b} = ?`;
+
+                // Reset input
+                const input = document.getElementById('answer-input');
+                input.value = '';
+                input.focus();
+
+                // Update counters
+                document.getElementById('game-streak').textContent = state.profile.streak;
+                document.getElementById('game-xp').textContent = state.session.xpEarned;
+
+                // Session progress
+                updateSessionProgress();
+            }
+
+            function updateGameScreen(problem, streak, xp) {
+                document.getElementById('problem-display').textContent = `${problem.a} × ${problem.b} = ?`;
+
+                const input = document.getElementById('answer-input');
+                input.value = '';
+                input.focus();
+
+                document.getElementById('game-streak').textContent = streak;
+                document.getElementById('game-xp').textContent = xp;
+
+                // Update blitz counter
+                const state = stateManager.get();
+                if (state.session.mode === 'blitz') {
+                    const modeIndicator = document.getElementById('mode-indicator');
+                    state.session.blitzRemaining--;
+                    modeIndicator.textContent = `⚡ BLITZ: ${state.session.blitzRemaining}`;
+                }
+
+                updateSessionProgress();
+            }
+
+            function updateSessionProgress() {
+                const state = stateManager.get();
+                const elapsed = Date.now() - state.session.startAt;
+                const percent = (elapsed / state.session.durationMs) * 100;
+                document.getElementById('session-progress').style.width = Math.min(percent, 100) + '%';
+            }
+
+            function showFeedback(isCorrect, xp, streak, event, correctAnswer) {
+                const overlay = document.getElementById('feedback-overlay');
+                const bg = document.getElementById('feedback-bg');
+                const text = document.getElementById('feedback-text');
+
+                overlay.classList.add('show');
+
+                if (isCorrect) {
+                    bg.className = 'feedback-correct';
+                    text.className = 'feedback-text correct';
+
+                    if (event && event.type === 'x2') {
+                        text.textContent = '💎 x2 BONUS!';
+                    } else if (event && event.type === 'blitz') {
+                        text.textContent = '⚡ BLITZ MODE!';
+                    } else if (event && event.type === 'boss') {
+                        text.textContent = '👹 BOSS TASK!';
+                    } else if (xp > 15) {
+                        text.textContent = '⚡ FAST!';
+                    } else if (streak > 0 && streak % STREAK_INCREMENT === 0) {
+                        text.textContent = `🔥 ${streak}!`;
+                    } else {
+                        text.textContent = '✓';
+                    }
+                } else {
+                    bg.className = 'feedback-incorrect';
+                    text.className = 'feedback-text incorrect';
+                    text.textContent = `× ${correctAnswer}`;
+                }
+
+                setTimeout(() => {
+                    overlay.classList.remove('show');
+                }, 1200);
+            }
+
+            function showResultsScreen(stats) {
+                showScreen('results-screen');
+
+                document.getElementById('result-problems').textContent = stats.problems;
+                document.getElementById('result-accuracy').textContent = Math.round(stats.accuracy * 100) + '%';
+                document.getElementById('result-xp').textContent = stats.xp;
+                document.getElementById('result-streak').textContent = stats.streak;
+            }
+
+            return {
+                showScreen,
+                updateHomeScreen,
+                showGameScreen,
+                updateGameScreen,
+                showFeedback,
+                showResultsScreen
+            };
+        })();
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('start-button').addEventListener('click', () => {
+            gameEngine.startSession('normal');
+        });
+
+        document.getElementById('continue-button').addEventListener('click', () => {
+            uiRenderer.updateHomeScreen();
+            uiRenderer.showScreen('home-screen');
+        });
+
+        document.getElementById('answer-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const input = e.target;
+                if (input.value && !isNaN(input.value)) {
+                    const answer = parseInt(input.value, 10);
+                    gameEngine.submitAnswer(answer);
+                }
+            }
+        });
+
+        document.getElementById('go-button').addEventListener('click', () => {
+            const input = document.getElementById('answer-input');
+            if (input.value && !isNaN(input.value)) {
+                const answer = parseInt(input.value, 10);
+                gameEngine.submitAnswer(answer);
+            }
+        });
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        (function init() {
+            stateManager.load();
+
+            // Update home screen
+            uiRenderer.updateHomeScreen();
+
+            // Show home screen
+            uiRenderer.showScreen('home-screen');
+
+            console.log('Глобальное умножение initialized');
+        })();
+    </script>
+</body>
+</html>
