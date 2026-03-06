@@ -229,6 +229,56 @@
             transition: border-color 0.2s;
         }
 
+        .answer-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .secondary-button {
+            min-width: 120px;
+            height: 48px;
+            padding: 0 16px;
+            font-size: 18px;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        .secondary-button:hover {
+            transform: scale(1.02);
+        }
+
+        .secondary-button:active {
+            transform: scale(0.98);
+        }
+
+        .secondary-button.voice-active {
+            background: var(--accent-red);
+            color: #fff;
+            animation: pulseVoice 1s ease-in-out infinite;
+        }
+
+        .secondary-button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .voice-status {
+            min-height: 24px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
         .answer-input:focus {
             border-color: var(--accent-green);
         }
@@ -381,6 +431,16 @@
             75% { transform: translateX(10px); }
         }
 
+        @keyframes pulseVoice {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 68, 102, 0.35);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(255, 68, 102, 0);
+            }
+        }
+
         @media (max-width: 480px) {
             .level-number {
                 font-size: 56px;
@@ -442,6 +502,11 @@
         <div class="problem-display" id="problem-display">2 × 3 = ?</div>
 
         <input type="number" class="answer-input" id="answer-input" autocomplete="off" inputmode="numeric">
+        <div class="answer-controls">
+            <button class="secondary-button" id="voice-button" type="button">🎙️ Голос</button>
+            <button class="secondary-button" id="clear-button" type="button">Стереть</button>
+        </div>
+        <div class="voice-status" id="voice-status"></div>
         <button class="go-button" id="go-button">GO!</button>
     </div>
 
@@ -619,6 +684,190 @@
         function randomInt(min, max) {
             return Math.floor(random(min, max + 1));
         }
+
+        function normalizeRussianText(text) {
+            return text
+                .toLowerCase()
+                .replace(/ё/g, 'е')
+                .replace(/[^а-я0-9\s-]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function parseRussianNumber(text) {
+            const normalized = normalizeRussianText(text);
+            if (!normalized) {
+                return null;
+            }
+
+            const directDigits = normalized.match(/\d+/);
+            if (directDigits) {
+                return parseInt(directDigits[0], 10);
+            }
+
+            const units = {
+                ноль: 0,
+                один: 1,
+                одна: 1,
+                два: 2,
+                две: 2,
+                три: 3,
+                четыре: 4,
+                пять: 5,
+                шесть: 6,
+                семь: 7,
+                восемь: 8,
+                девять: 9
+            };
+
+            const teens = {
+                десять: 10,
+                одиннадцать: 11,
+                двенадцать: 12,
+                тринадцать: 13,
+                четырнадцать: 14,
+                пятнадцать: 15,
+                шестнадцать: 16,
+                семнадцать: 17,
+                восемнадцать: 18,
+                девятнадцать: 19
+            };
+
+            const tens = {
+                двадцать: 20,
+                тридцать: 30,
+                сорок: 40,
+                пятьдесят: 50,
+                шестьдесят: 60,
+                семьдесят: 70,
+                восемьдесят: 80,
+                девяносто: 90
+            };
+
+            const tokens = normalized.split(' ');
+            let total = 0;
+            let consumed = false;
+
+            for (const token of tokens) {
+                if (token in teens) {
+                    total += teens[token];
+                    consumed = true;
+                    continue;
+                }
+
+                if (token in tens) {
+                    total += tens[token];
+                    consumed = true;
+                    continue;
+                }
+
+                if (token in units) {
+                    total += units[token];
+                    consumed = true;
+                }
+            }
+
+            if (!consumed) {
+                return null;
+            }
+
+            return total;
+        }
+
+        // ============================================
+        // VOICE INPUT
+        // ============================================
+        const voiceInputController = (function() {
+            const voiceButton = document.getElementById('voice-button');
+            const answerInput = document.getElementById('answer-input');
+            const voiceStatus = document.getElementById('voice-status');
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                voiceButton.disabled = true;
+                voiceStatus.textContent = 'Голосовой ввод недоступен в этом браузере';
+                return {
+                    stop: () => {}
+                };
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'ru-RU';
+            recognition.interimResults = true;
+            recognition.continuous = false;
+            recognition.maxAlternatives = 3;
+
+            let isListening = false;
+
+            function setStatus(text) {
+                voiceStatus.textContent = text;
+            }
+
+            function syncButton() {
+                voiceButton.classList.toggle('voice-active', isListening);
+                voiceButton.textContent = isListening ? '⏹️ Стоп' : '🎙️ Голос';
+            }
+
+            function start() {
+                recognition.start();
+            }
+
+            function stop() {
+                recognition.stop();
+            }
+
+            recognition.onstart = () => {
+                isListening = true;
+                syncButton();
+                setStatus('Слушаю… произнесите ответ по-русски');
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                syncButton();
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'not-allowed') {
+                    setStatus('Нет доступа к микрофону. Разрешите доступ в браузере');
+                    return;
+                }
+
+                if (event.error === 'no-speech') {
+                    setStatus('Речь не распознана. Попробуйте ещё раз');
+                    return;
+                }
+
+                setStatus('Ошибка голосового ввода. Повторите попытку');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[event.resultIndex][0].transcript || '';
+                const parsed = parseRussianNumber(transcript);
+
+                if (parsed === null || Number.isNaN(parsed)) {
+                    setStatus(`Не удалось распознать число: «${transcript.trim()}»`);
+                    return;
+                }
+
+                answerInput.value = String(parsed);
+                setStatus(`Распознано: ${parsed}`);
+            };
+
+            voiceButton.addEventListener('click', () => {
+                if (isListening) {
+                    stop();
+                    return;
+                }
+
+                setStatus('Запуск микрофона…');
+                start();
+            });
+
+            return {
+                stop
+            };
+        })();
 
         // ============================================
         // ADAPTIVE ENGINE
@@ -1102,6 +1351,7 @@
 
             function showGameScreen(problem) {
                 showScreen('game-screen');
+                voiceInputController.stop();
 
                 // Mode indicator
                 const modeIndicator = document.getElementById('mode-indicator');
@@ -1125,6 +1375,7 @@
                 const input = document.getElementById('answer-input');
                 input.value = '';
                 input.focus();
+                document.getElementById('voice-status').textContent = '';
 
                 // Update counters
                 document.getElementById('game-streak').textContent = state.profile.streak;
@@ -1135,11 +1386,13 @@
             }
 
             function updateGameScreen(problem, streak, xp) {
+                voiceInputController.stop();
                 document.getElementById('problem-display').textContent = `${problem.a} × ${problem.b} = ?`;
 
                 const input = document.getElementById('answer-input');
                 input.value = '';
                 input.focus();
+                document.getElementById('voice-status').textContent = '';
 
                 document.getElementById('game-streak').textContent = streak;
                 document.getElementById('game-xp').textContent = xp;
@@ -1244,6 +1497,13 @@
                 const answer = parseInt(input.value, 10);
                 gameEngine.submitAnswer(answer);
             }
+        });
+
+        document.getElementById('clear-button').addEventListener('click', () => {
+            const input = document.getElementById('answer-input');
+            input.value = '';
+            input.focus();
+            document.getElementById('voice-status').textContent = 'Поле очищено';
         });
 
         // ============================================
