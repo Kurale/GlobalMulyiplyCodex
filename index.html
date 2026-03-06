@@ -787,58 +787,109 @@
                 voiceButton.disabled = true;
                 voiceStatus.textContent = 'Голосовой ввод недоступен в этом браузере';
                 return {
-                    stop: () => {}
+                    enableForGame: () => {},
+                    disable: () => {}
                 };
             }
 
             const recognition = new SpeechRecognition();
             recognition.lang = 'ru-RU';
             recognition.interimResults = true;
-            recognition.continuous = false;
+            recognition.continuous = true;
             recognition.maxAlternatives = 3;
 
             let isListening = false;
+            let isStarting = false;
+            let shouldBeActive = false;
 
             function setStatus(text) {
                 voiceStatus.textContent = text;
             }
 
             function syncButton() {
-                voiceButton.classList.toggle('voice-active', isListening);
-                voiceButton.textContent = isListening ? '⏹️ Стоп' : '🎙️ Голос';
+                const isActive = shouldBeActive && (isListening || isStarting);
+                voiceButton.classList.toggle('voice-active', isActive);
+                voiceButton.textContent = shouldBeActive ? '🎙️ Микрофон: ВКЛ' : '🎙️ Микрофон: ВЫКЛ';
             }
 
-            function start() {
-                recognition.start();
+            function startRecognition() {
+                if (!shouldBeActive || isListening || isStarting) {
+                    return;
+                }
+
+                isStarting = true;
+                syncButton();
+                setStatus('Запуск микрофона…');
+
+                try {
+                    recognition.start();
+                } catch (error) {
+                    isStarting = false;
+                    syncButton();
+                    if (error && error.name === 'InvalidStateError') {
+                        return;
+                    }
+                    setStatus('Не удалось запустить микрофон');
+                }
             }
 
-            function stop() {
-                recognition.stop();
+            function scheduleRestart() {
+                if (!shouldBeActive) {
+                    return;
+                }
+
+                setTimeout(() => {
+                    startRecognition();
+                }, 250);
+            }
+
+            function enableForGame() {
+                shouldBeActive = true;
+                syncButton();
+                startRecognition();
+            }
+
+            function disable() {
+                shouldBeActive = false;
+                syncButton();
+                setStatus('');
+
+                if (isListening || isStarting) {
+                    recognition.stop();
+                }
             }
 
             recognition.onstart = () => {
+                isStarting = false;
                 isListening = true;
                 syncButton();
                 setStatus('Слушаю… произнесите ответ по-русски');
             };
 
             recognition.onend = () => {
+                isStarting = false;
                 isListening = false;
                 syncButton();
+
+                if (shouldBeActive) {
+                    scheduleRestart();
+                }
             };
 
             recognition.onerror = (event) => {
                 if (event.error === 'not-allowed') {
+                    shouldBeActive = false;
+                    syncButton();
                     setStatus('Нет доступа к микрофону. Разрешите доступ в браузере');
                     return;
                 }
 
                 if (event.error === 'no-speech') {
-                    setStatus('Речь не распознана. Попробуйте ещё раз');
+                    setStatus('Слушаю… произнесите ответ по-русски');
                     return;
                 }
 
-                setStatus('Ошибка голосового ввода. Повторите попытку');
+                setStatus('Ошибка голосового ввода. Повторное подключение…');
             };
 
             recognition.onresult = (event) => {
@@ -855,17 +906,19 @@
             };
 
             voiceButton.addEventListener('click', () => {
-                if (isListening) {
-                    stop();
+                if (shouldBeActive) {
+                    disable();
                     return;
                 }
 
-                setStatus('Запуск микрофона…');
-                start();
+                enableForGame();
             });
 
+            syncButton();
+
             return {
-                stop
+                enableForGame,
+                disable
             };
         })();
 
@@ -1301,6 +1354,12 @@
             function showScreen(screenId) {
                 document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
                 document.getElementById(screenId).classList.add('active');
+
+                if (screenId === 'game-screen') {
+                    voiceInputController.enableForGame();
+                } else {
+                    voiceInputController.disable();
+                }
             }
 
             function updateHomeScreen() {
@@ -1351,7 +1410,6 @@
 
             function showGameScreen(problem) {
                 showScreen('game-screen');
-                voiceInputController.stop();
 
                 // Mode indicator
                 const modeIndicator = document.getElementById('mode-indicator');
@@ -1375,7 +1433,6 @@
                 const input = document.getElementById('answer-input');
                 input.value = '';
                 input.focus();
-                document.getElementById('voice-status').textContent = '';
 
                 // Update counters
                 document.getElementById('game-streak').textContent = state.profile.streak;
@@ -1386,13 +1443,11 @@
             }
 
             function updateGameScreen(problem, streak, xp) {
-                voiceInputController.stop();
                 document.getElementById('problem-display').textContent = `${problem.a} × ${problem.b} = ?`;
 
                 const input = document.getElementById('answer-input');
                 input.value = '';
                 input.focus();
-                document.getElementById('voice-status').textContent = '';
 
                 document.getElementById('game-streak').textContent = streak;
                 document.getElementById('game-xp').textContent = xp;
